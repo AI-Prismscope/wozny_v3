@@ -2,6 +2,18 @@ import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { findDuplicateGroups } from "../data-quality";
 import { sortRows } from "../services/sorting";
+import { 
+  ClassificationResult, 
+  classifySchema, 
+  getStoredClassification, 
+  storeClassification,
+  mapDataTypeToDetectionMode,
+  DataType,
+} from "../schema-classifier";
+import { 
+  trackClassificationEvent, 
+  AnalyticsEventType 
+} from "../analytics";
 
 export type RowData = Record<string, string>;
 
@@ -21,17 +33,24 @@ export interface WoznyState {
     | "workshop"
     | "diff"
     | "about"
-    | "status";
+    | "status"
+    | "settings"
+    | "analytics";
 
   // User Selection State
   userSelection: number[];
   showHiddenColumns: boolean;
   columnWidths: Record<string, number>;
   splittableColumns: Record<string, "ADDRESS" | "NAME" | "NONE">;
-  sortConfig: { columnId: string; direction: "asc" | "desc" } | null;
+  sortConfig: Array<{ columnId: string; direction: "asc" | "desc" }>;
 
   // System Status State
   storageUsage: { used: number; quota: number; percent: number } | null;
+
+  // Schema Classification State
+  schemaClassification: ClassificationResult | null;
+  showClassificationNotification: boolean;
+  showClassificationDialog: boolean;
 
   // Actions
   setCsvData: (fileName: string, data: RowData[], columns: string[]) => void;
@@ -55,10 +74,15 @@ export interface WoznyState {
   ) => Promise<{ success: number; fail: number }>;
 
   // Sort Action
-  toggleSort: (columnId: string) => void;
+  toggleSort: (columnId: string, isMultiSort?: boolean) => void;
 
   // System Actions
   checkStorage: () => Promise<void>;
+
+  // Classification Actions
+  confirmClassification: (dataType: DataType) => void;
+  dismissClassificationNotification: () => void;
+  openClassificationSettings: () => void;
 }
 
 import { calculateColumnWidths } from "../measure-utils";
@@ -75,8 +99,11 @@ export const useWoznyStore = create<WoznyState>()(
     showHiddenColumns: false,
     columnWidths: {},
     splittableColumns: {},
-    sortConfig: null,
+    sortConfig: [],
     storageUsage: null,
+    schemaClassification: null,
+    showClassificationNotification: false,
+    showClassificationDialog: false,
 
     setCsvData: (fileName, data, columns) =>
       set((state) => {
@@ -96,8 +123,58 @@ export const useWoznyStore = create<WoznyState>()(
         });
         state.splittableColumns = splitMap;
 
-        state.sortConfig = null;
+        state.sortConfig = [];
         state.activeTab = "report";
+
+        // Perform schema classification
+        let classification: ClassificationResult | null = null;
+        
+        // Check for stored classification
+        const stored = getStoredClassification(fileName);
+        if (stored) {
+          classification = {
+            dataType: stored.dataType,
+            confidence: stored.confidence,
+            indicators: stored.indicators,
+            detectionMode: stored.detectionMode,
+            timestamp: stored.timestamp,
+            source: 'stored',
+          };
+          state.schemaClassification = classification;
+          state.showClassificationNotification = true;
+          state.showClassificationDialog = false;
+        } else {
+          // Perform new classification
+          classification = classifySchema(data, columns);
+          state.schemaClassification = classification;
+          
+          if (classification && classification.confidence > 80) {
+            // High confidence: auto-apply and show notification
+            storeClassification(fileName, classification, false);
+            state.showClassificationNotification = true;
+            state.showClassificationDialog = false;
+            
+            // Track analytics event
+            trackClassificationEvent(
+              AnalyticsEventType.CLASSIFICATION_AUTO,
+              classification.dataType,
+              classification.confidence,
+              classification.detectionMode,
+              fileName
+            );
+          } else if (classification) {
+            // Low confidence: show confirmation dialog
+            state.showClassificationNotification = false;
+            state.showClassificationDialog = true;
+          }
+        }
+
+        // Run duplicate detection with appropriate mode
+        if (classification) {
+          const duplicateGroups = findDuplicateGroups(data, columns, classification.detectionMode);
+          // Note: We don't auto-remove duplicates, just detect them
+          // The user can use resolveDuplicates() if they want
+        }
       }),
 
     setRows: (rows) =>
@@ -115,7 +192,7 @@ export const useWoznyStore = create<WoznyState>()(
         state.userSelection = [];
         state.columnWidths = {};
         state.splittableColumns = {};
-        state.sortConfig = null;
+        state.sortConfig = [];
       }),
 
     setActiveTab: (tab) =>
@@ -140,7 +217,9 @@ export const useWoznyStore = create<WoznyState>()(
     resolveDuplicates: () =>
       set((state) => {
         const rowsToDelete = new Set<number>();
-        const duplicateGroups = findDuplicateGroups(state.rows, state.columns);
+        // Use detection mode from classification if available, otherwise default to AGGRESSIVE
+        const detectionMode = state.schemaClassification?.detectionMode;
+        const duplicateGroups = findDuplicateGroups(state.rows, state.columns, detectionMode);
 
         duplicateGroups.forEach((group) => {
           for (let i = 1; i < group.length; i++) {
@@ -241,17 +320,43 @@ export const useWoznyStore = create<WoznyState>()(
       return { success: successCount, fail: failCount };
     },
 
-    toggleSort: (columnId) =>
+    toggleSort: (columnId, isMultiSort = false) =>
       set((state) => {
-        let nextDir: "asc" | "desc" | null = "asc";
-        if (state.sortConfig?.columnId === columnId) {
-          if (state.sortConfig.direction === "asc") nextDir = "desc";
-          else nextDir = null;
+        const existingIndex = state.sortConfig.findIndex(c => c.columnId === columnId);
+        
+        if (isMultiSort) {
+          // Multi-column mode: Add or update sort
+          if (existingIndex >= 0) {
+            // Column already in sort chain - toggle direction or remove
+            const existing = state.sortConfig[existingIndex];
+            if (existing.direction === 'asc') {
+              existing.direction = 'desc';
+            } else {
+              // Remove from sort chain
+              state.sortConfig.splice(existingIndex, 1);
+            }
+          } else {
+            // Add new column to sort chain
+            state.sortConfig.push({ columnId, direction: 'asc' });
+          }
+        } else {
+          // Single-column mode: Replace all sorts
+          if (existingIndex >= 0 && state.sortConfig.length === 1) {
+            // Same column, toggle through: asc → desc → off
+            const existing = state.sortConfig[0];
+            if (existing.direction === 'asc') {
+              existing.direction = 'desc';
+            } else {
+              // Remove sort (back to original order)
+              state.sortConfig = [];
+            }
+          } else {
+            // New column or switching from multi-sort: start fresh with asc
+            state.sortConfig = [{ columnId, direction: 'asc' }];
+          }
         }
 
-        const config = nextDir ? { columnId, direction: nextDir } : null;
-        state.sortConfig = config;
-        state.rows = sortRows(state.rows, config);
+        state.rows = sortRows(state.rows, state.sortConfig);
       }),
 
     checkStorage: async () => {
@@ -270,5 +375,61 @@ export const useWoznyStore = create<WoznyState>()(
         }
       }
     },
+
+    confirmClassification: (dataType) =>
+      set((state) => {
+        if (!state.schemaClassification) return;
+
+        // Determine if this is a change or confirmation
+        const isChange = state.schemaClassification.dataType !== dataType;
+        const eventType = isChange 
+          ? AnalyticsEventType.CLASSIFICATION_CHANGED 
+          : AnalyticsEventType.CLASSIFICATION_CONFIRMED;
+
+        // Update classification with user-selected type
+        const detectionMode = mapDataTypeToDetectionMode(dataType);
+        state.schemaClassification = {
+          ...state.schemaClassification,
+          dataType,
+          detectionMode,
+          source: 'user-confirmed',
+          timestamp: Date.now(),
+        };
+
+        // Store classification with userConfirmed=true
+        if (state.fileName) {
+          storeClassification(state.fileName, state.schemaClassification, true);
+          
+          // Track analytics event
+          trackClassificationEvent(
+            eventType,
+            dataType,
+            state.schemaClassification.confidence,
+            detectionMode,
+            state.fileName,
+            isChange ? { previousType: state.schemaClassification.dataType } : undefined
+          );
+        }
+
+        // Close dialog, show notification
+        state.showClassificationDialog = false;
+        state.showClassificationNotification = true;
+
+        // Re-run duplicate detection with new mode
+        const duplicateGroups = findDuplicateGroups(state.rows, state.columns, detectionMode);
+        // Note: We don't auto-remove duplicates, just re-detect them
+        // The user can still use resolveDuplicates() if they want
+      }),
+
+    dismissClassificationNotification: () =>
+      set((state) => {
+        state.showClassificationNotification = false;
+      }),
+
+    openClassificationSettings: () =>
+      set((state) => {
+        state.showClassificationNotification = false;
+        state.showClassificationDialog = true;
+      }),
   })),
 );

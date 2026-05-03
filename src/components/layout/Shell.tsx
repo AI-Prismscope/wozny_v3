@@ -28,7 +28,7 @@ export const Shell = ({ children }: ShellProps) => {
         <div className="flex items-center gap-8">
           <div className="flex flex-col">
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-              Wozny v2
+              Wozny v3
             </h1>
             <p className="text-xs font-bold text-black dark:text-white -mt-1">
                 Stop Searching, Start Seeing

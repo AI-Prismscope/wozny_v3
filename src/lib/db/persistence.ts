@@ -447,7 +447,7 @@ export async function loadSession(sessionId: number): Promise<boolean> {
         ) as Record<string, "ADDRESS" | "NAME" | "NONE">,
         sortConfig: meta.sort_config
           ? (JSON.parse(String(meta.sort_config)) as WoznyState["sortConfig"])
-          : null,
+          : [],
         showHiddenColumns: meta.show_hidden_columns === 1,
         activeTab: "report", // Default to report view after loading
       });

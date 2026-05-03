@@ -122,7 +122,7 @@ export const AboutView = () => {
 
                 {/* Footer */}
                 <div className="mt-16 text-center text-sm text-neutral-400">
-                    <p>Wozny V2 • Built with Next.js, WebGPU & Transformers.js</p>
+                    <p>Wozny V3 • Built with Next.js, WebGPU & Transformers.js</p>
                 </div>
             </div>
         </div>

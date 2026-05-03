@@ -47,12 +47,16 @@ export const normalizeDate = (str: string): string => {
     if (isNaN(ts)) {
         const match = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
         if (match) {
-            const [, m, d, y] = match;
+            // Assume DD/MM/YYYY format (European/International standard)
+            const [, d, m, y] = match;  // ← First is day, second is month
             const year = y.length === 2 ? `20${y}` : y;
+            
+            // Convert to ISO format (YYYY-MM-DD)
             return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
         return str;
     }
+    // Convert to ISO format (YYYY-MM-DD)
     return new Date(ts).toISOString().split('T')[0];
 };
 

@@ -20,8 +20,8 @@ interface DataGridProps {
     onSplitColumn?: (col: string) => void;
     splittableColumns?: Record<string, 'ADDRESS' | 'NAME' | 'NONE'>;
     columnWidths?: Record<string, number>;
-    sortConfig?: { columnId: string; direction: 'asc' | 'desc' } | null;
-    onSort?: (col: string) => void;
+    sortConfig?: Array<{ columnId: string; direction: 'asc' | 'desc' }>;
+    onSort?: (col: string, isShiftKey: boolean) => void;
 }
 
 export const DataGrid = React.forwardRef<HTMLDivElement, DataGridProps>(({
@@ -83,8 +83,12 @@ export const DataGrid = React.forwardRef<HTMLDivElement, DataGridProps>(({
                     {columns.map((col) => {
                         const isIgnored = ignoredColumns.includes(col);
                         const width = getColumnWidth(col);
-                        const isSorted = sortConfig?.columnId === col;
-                        const direction = isSorted ? sortConfig.direction : null;
+                        
+                        // Find if this column is in the sort config
+                        const sortIndex = sortConfig?.findIndex(s => s.columnId === col) ?? -1;
+                        const isSorted = sortIndex >= 0;
+                        const direction = isSorted ? sortConfig![sortIndex].direction : null;
+                        const sortOrder = isSorted ? sortIndex + 1 : null;
 
                         return (
                             <div
@@ -94,14 +98,23 @@ export const DataGrid = React.forwardRef<HTMLDivElement, DataGridProps>(({
                                     "shrink-0 border-r border-neutral-200 dark:border-neutral-800 last:border-r-0 flex items-center justify-between px-3 group transition-colors",
                                     onSort && "cursor-pointer hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50"
                                 )}
-                                onClick={() => onSort?.(col)}
+                                onClick={(e) => onSort?.(col, e.shiftKey)}
                             >
                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                     <span className={clsx("whitespace-normal line-clamp-2 leading-tight py-1", isIgnored && "opacity-50 line-through")}>
                                         {col.split('_').join('_\u200B')}
                                     </span>
-                                    {direction === 'asc' && <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />}
-                                    {direction === 'desc' && <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />}
+                                    {isSorted && (
+                                        <div className="flex items-center gap-0.5 shrink-0">
+                                            {sortOrder && sortConfig!.length > 1 && (
+                                                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
+                                                    {sortOrder}
+                                                </span>
+                                            )}
+                                            {direction === 'asc' && <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />}
+                                            {direction === 'desc' && <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center shrink-0">

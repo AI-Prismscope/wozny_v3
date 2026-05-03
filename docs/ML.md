@@ -1,4 +1,4 @@
-# Wozny V2 Machine Learning Architecture
+# Wozny V3 Machine Learning Architecture
 
 ## Core Philosophy: Local-First Intelligence
 Wozny operates on a "Privacy by Design" principle. All data analysis, including Machine Learning and Generative AI, occurs solely within the user's browser environment (Client-Side). No data is ever sent to a remote server for processing.

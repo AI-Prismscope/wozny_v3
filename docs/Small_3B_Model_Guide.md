@@ -1,5 +1,5 @@
 # Guide to Prompting Small (3B) Models
-*Learnings from Wozny v2 Development*
+*Learnings from Wozny v3 Development*
 
 Working with small parameter models (1B - 3B) requires a fundamentally different approach than working with large frontier models (GPT-4, Claude 3.5 Sonnet). These models obey instructions differently and are prone to specific types of errors.
 
@@ -92,7 +92,7 @@ Output: (row) => row["Ethnicity"] === "[MISSING]"
 
 ### 6. The Safety Net: Defensive Engineering
 **Principle:** Prompts are suggestions, not laws. Small models *will* eventually disobey even the best prompt ("No Markdown", "No Variables").
-**Finding from Wozny V2:** The prompt explicitly forbade markdown, but the model added it anyway. It forbade `const`, but the model added it anyway.
+**Finding from Wozny V3:** The prompt explicitly forbade markdown, but the model added it anyway. It forbade `const`, but the model added it anyway.
 
 *   **Don't Fix it in the Prompt, Fix it in the Code:**
     *   **Regex Extraction:** Always look for the pattern you want (e.g. `(row) => ...`) inside the response. Ignore the rest.

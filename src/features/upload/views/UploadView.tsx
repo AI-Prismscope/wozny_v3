@@ -5,9 +5,18 @@ import { useWoznyStore } from '@/lib/store/useWoznyStore';
 import { parseCsvFile } from '../utils/parser';
 import { UploadCloud, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
+import { ClassificationNotification } from '@/components/ui/ClassificationNotification';
+import { ClassificationConfirmDialog } from '@/components/ui/ClassificationConfirmDialog';
 
 export const UploadView = () => {
     const setCsvData = useWoznyStore((state) => state.setCsvData);
+    const schemaClassification = useWoznyStore((state) => state.schemaClassification);
+    const showClassificationNotification = useWoznyStore((state) => state.showClassificationNotification);
+    const showClassificationDialog = useWoznyStore((state) => state.showClassificationDialog);
+    const confirmClassification = useWoznyStore((state) => state.confirmClassification);
+    const dismissClassificationNotification = useWoznyStore((state) => state.dismissClassificationNotification);
+    const openClassificationSettings = useWoznyStore((state) => state.openClassificationSettings);
+    
     const [isDragOver, setIsDragOver] = useState(false);
     const [isParsing, setIsParsing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -57,10 +66,30 @@ export const UploadView = () => {
 
     return (
         <div className="flex flex-col items-center justify-center h-full p-8 animate-in fade-in duration-500">
+            {/* Classification Notification */}
+            {showClassificationNotification && schemaClassification && (
+                <ClassificationNotification
+                    result={schemaClassification}
+                    onChangeSettings={openClassificationSettings}
+                    onDismiss={dismissClassificationNotification}
+                />
+            )}
+
+            {/* Classification Confirmation Dialog */}
+            {showClassificationDialog && schemaClassification && (
+                <ClassificationConfirmDialog
+                    suggestedType={schemaClassification.dataType}
+                    confidence={schemaClassification.confidence}
+                    indicators={schemaClassification.indicators}
+                    onConfirm={confirmClassification}
+                    onCancel={dismissClassificationNotification}
+                />
+            )}
+
             <div className="max-w-xl w-full text-center space-y-8">
                 <div className="space-y-2">
                     <h1 className="text-4xl font-bold tracking-tighter bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                        Wozny v2
+                        Wozny v3
                     </h1>
                     <p className="text-neutral-600 dark:text-neutral-400">
                         Secure, Private, AI-Powered Data Cleaning.

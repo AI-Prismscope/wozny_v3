@@ -33,4 +33,4 @@ Talk to your data naturally. "Ask Wozny" uses an embedded LLM (`@mlc-ai/web-llm`
     Download Clean Data.
 
 ---
-*Wozny V2 • Built with Next.js, WebGPU & Transformers.js*
+*Wozny V3 • Built with Next.js, WebGPU & Transformers.js*

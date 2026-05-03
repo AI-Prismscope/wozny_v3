@@ -1,6 +1,6 @@
 # TODO & Technical Debt Tracker
 
-This file tracks pending features, technical debt, and improvements for the Wozny V2 project.
+This file tracks pending features, technical debt, and improvements for the Wozny V3 project.
 
 ---
 

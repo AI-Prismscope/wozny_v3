@@ -9,6 +9,7 @@ import {
   normalizeCurrency,
   ColumnContext,
 } from "./normalizers";
+import { DuplicateDetectionMode } from "./schema-classifier";
 
 // --- CONSTANTS & REGEX ---
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -79,15 +80,23 @@ export const autoFixRow = (
   return newRow;
 };
 
-// Shared Duplicate Detection Logic
+/**
+ * Finds duplicate groups in the dataset based on the specified detection mode.
+ * 
+ * @param rows - Array of data rows
+ * @param columns - Array of column names
+ * @param detectionMode - Detection mode (defaults to AGGRESSIVE for backward compatibility)
+ * @returns Array of duplicate groups (each group is an array of row indices)
+ */
 export const findDuplicateGroups = (
   rows: RowData[],
   columns: string[],
+  detectionMode: DuplicateDetectionMode = DuplicateDetectionMode.AGGRESSIVE,
 ): number[][] => {
   const groups: number[][] = [];
   const processedRows = new Set<number>();
 
-  // 1. Exact Duplicates
+  // Tier 1: Always check exact duplicates (all columns match) - applies to all modes
   const exactMap = new Map<string, number[]>();
   rows.forEach((row, idx) => {
     const finger = columns
@@ -108,37 +117,86 @@ export const findDuplicateGroups = (
     }
   });
 
-  // 2. Partial Duplicates
-  const keyCols = columns.filter((c) => {
-    const lo = c.toLowerCase();
-    return (
-      lo.includes("email") ||
-      lo.includes("phone") ||
-      (lo.includes("name") && !lo.includes("last"))
-    );
-  });
+  // Tier 2: Conditional partial matching based on detection mode
+  if (detectionMode === DuplicateDetectionMode.AGGRESSIVE) {
+    // AGGRESSIVE mode: Partial matching on key columns (name, email, phone)
+    // This is the original behavior for customer data
+    const keyCols = columns.filter((c) => {
+      const lo = c.toLowerCase();
+      return (
+        lo.includes("email") ||
+        lo.includes("phone") ||
+        (lo.includes("name") && !lo.includes("last"))
+      );
+    });
 
-  if (keyCols.length > 0) {
-    keyCols.forEach((keyCol) => {
-      const keyMap = new Map<string, number[]>();
+    if (keyCols.length > 0) {
+      keyCols.forEach((keyCol) => {
+        const keyMap = new Map<string, number[]>();
+        rows.forEach((row, idx) => {
+          if (processedRows.has(idx)) return; // Skip if already grouped
+          const val = String(row[keyCol] || "")
+            .trim()
+            .toLowerCase();
+          if (!val || val.length < 3) return;
+
+          if (!keyMap.has(val)) keyMap.set(val, []);
+          keyMap.get(val)!.push(idx);
+        });
+
+        keyMap.forEach((indices) => {
+          if (indices.length > 1) {
+            groups.push(indices);
+            indices.forEach((i) => processedRows.add(i));
+          }
+        });
+      });
+    }
+  } else if (detectionMode === DuplicateDetectionMode.CONSERVATIVE) {
+    // CONSERVATIVE mode: No partial matching - exact duplicates only
+    // This is appropriate for transaction and inventory data
+    // (No additional logic needed - exact duplicates already found above)
+  } else if (detectionMode === DuplicateDetectionMode.VERY_CONSERVATIVE) {
+    // VERY_CONSERVATIVE mode: Match on timestamp + metric combination only
+    // This is appropriate for time-series data
+    const timestampCols = columns.filter((c) => {
+      const lo = c.toLowerCase();
+      return lo.includes("timestamp") || lo.includes("datetime") || 
+             (lo.includes("date") && !lo.includes("update")) ||
+             lo.includes("time");
+    });
+
+    const metricCols = columns.filter((c) => {
+      const lo = c.toLowerCase();
+      return lo.includes("metric") || lo.includes("measurement") || 
+             lo.includes("reading") || lo.includes("value");
+    });
+
+    // Only apply if we have both timestamp and metric columns
+    if (timestampCols.length > 0 && metricCols.length > 0) {
+      const combinedMap = new Map<string, number[]>();
+      
       rows.forEach((row, idx) => {
         if (processedRows.has(idx)) return; // Skip if already grouped
-        const val = String(row[keyCol] || "")
-          .trim()
-          .toLowerCase();
-        if (!val || val.length < 3) return;
-
-        if (!keyMap.has(val)) keyMap.set(val, []);
-        keyMap.get(val)!.push(idx);
+        
+        // Create a key from timestamp + metric
+        const timestampVal = String(row[timestampCols[0]] || "").trim().toLowerCase();
+        const metricVal = String(row[metricCols[0]] || "").trim().toLowerCase();
+        
+        if (!timestampVal || !metricVal) return;
+        
+        const combinedKey = `${timestampVal}|${metricVal}`;
+        if (!combinedMap.has(combinedKey)) combinedMap.set(combinedKey, []);
+        combinedMap.get(combinedKey)!.push(idx);
       });
 
-      keyMap.forEach((indices) => {
+      combinedMap.forEach((indices) => {
         if (indices.length > 1) {
           groups.push(indices);
           indices.forEach((i) => processedRows.add(i));
         }
       });
-    });
+    }
   }
 
   return groups;

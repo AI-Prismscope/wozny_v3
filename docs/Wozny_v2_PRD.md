@@ -1,6 +1,6 @@
-# **Wozny v2 - The AI Data Workshop PRD**
+# **Wozny v3 - The AI Data Workshop PRD**
 
-**Project:** Wozny - Data Janitor (v2 Evolution)
+**Project:** Wozny - Data Janitor (v3 Evolution)
 **Owner:** Michelle Brooks
 **Date:** January 26, 2026
 

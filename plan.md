@@ -1,4 +1,4 @@
-# Project Plan: Wozny V2 - Hybrid ML Integration
+# Project Plan: Wozny V3 - Hybrid ML Integration
 
 ## 1. Project Overview
 * **Application Type:** Next.js Web Application (React 19, TailwindCSS 4)

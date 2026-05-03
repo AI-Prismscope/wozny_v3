@@ -1,6 +1,6 @@
-# Wozny V2 Security & Robustness Requirements (SRD)
+# Wozny V3 Security & Robustness Requirements (SRD)
 
-**Project:** Wozny - Data Workshop (v2)  
+**Project:** Wozny - Data Workshop (v3)  
 **Document:** Security & Robustness Requirements (SRD)  
 **Status:** DRAFT / AUDIT COMPLETE  
 **Last Updated:** February 1, 2026

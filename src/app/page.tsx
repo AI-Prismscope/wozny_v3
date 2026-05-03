@@ -15,6 +15,8 @@ import { useWoznyStore } from "@/lib/store/useWoznyStore";
 import { DiffView } from "@/features/diff/views/DiffView";
 import { AboutView } from "@/features/about/views/AboutView";
 import { StatusView } from "@/features/status/views/StatusView";
+import { SettingsView } from "@/features/settings/views/SettingsView";
+import { AnalyticsView } from "@/features/analytics/views/AnalyticsView";
 
 export default function Home() {
   const [isRehydrating, setIsRehydrating] = useState(true);
@@ -47,6 +49,8 @@ export default function Home() {
       {activeTab === "workshop" && <WorkshopView />}
       {activeTab === "ask-wozny" && <AskWoznyView />}
       {activeTab === "diff" && <DiffView />}
+      {activeTab === "analytics" && <AnalyticsView />}
+      {activeTab === "settings" && <SettingsView />}
       {activeTab === "about" && <AboutView />}
       {activeTab === "status" && <StatusView />}
     </Shell>
