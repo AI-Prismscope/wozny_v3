@@ -45,25 +45,23 @@ export const AskWoznyView = () => {
     if (!aiFilterCode) return rows;
 
     try {
-      // 1. Extract Code Block (Smarter Extraction)
-      // The AI often wraps code in markdown or prefixes text.
+      // Extract and clean the AI-generated code
       let cleanCode = aiFilterCode.trim();
 
-      // Regex to find code inside ``` ... ```
+      // Remove markdown code blocks if present
       const markdownMatch = cleanCode.match(
         /```(?:javascript|js)?\s*([\s\S]*?)\s*```/,
       );
       if (markdownMatch) {
         cleanCode = markdownMatch[1].trim();
       } else {
-        // Fallback A: Look for the specific Arrow Function signature
-        // The AI prompt demands "(row) =>", so we can reliably look for it.
+        // Look for arrow function signature
         const arrowIndex = cleanCode.indexOf("(row) =>");
         if (arrowIndex !== -1) {
           cleanCode = cleanCode.substring(arrowIndex);
         }
 
-        // Fallback B: Basic cleanup if no signature found (rare, effectively assumes pure code)
+        // Basic cleanup
         cleanCode = cleanCode
           .replace(/```javascript/g, "")
           .replace(/```js/g, "")
@@ -71,50 +69,25 @@ export const AskWoznyView = () => {
           .trim();
       }
 
-      // 2. Handle generic variable declarations
-      // Remove "const filter =", "let f =", "var x ="
+      // Remove variable declarations
       cleanCode = cleanCode.replace(/^(const|let|var)\s+\w+\s*=\s*/, "");
 
-      // 3. Remove trailing semicolons
-      cleanCode = cleanCode.trim();
-      cleanCode = cleanCode.replace(/;$/, "");
+      // Remove trailing semicolons
+      cleanCode = cleanCode.trim().replace(/;$/, "");
 
-      console.log("Raw AI Code:", aiFilterCode);
-      console.log("Parsed Code:", cleanCode);
-
-      // 4. Create Fuzzy Proxy Helper
-      const createFuzzyRowProxy = (targetRow: RowData) => {
-        return new Proxy(targetRow, {
-          get: (target, prop) => {
-            if (typeof prop !== "string") return Reflect.get(target, prop);
-
-            // 1. Exact match
-            if (prop in target) return target[prop];
-
-            // 2. Case-insensitive match
-            const exactKeys = Object.keys(target);
-            const lowerProp = prop.toLowerCase();
-            const key = exactKeys.find((k) => k.toLowerCase() === lowerProp);
-            if (key) return target[key];
-
-            // 3. Fallback (maybe Levenshtein later?)
-            return undefined;
-          },
-        });
-      };
-
-      // 5. Create the filter function
-      const expressionFn = new Function("row", `return (${cleanCode})(row)`);
-
-      return rows.filter((row) => {
+      // Filter rows using IIFE pattern
+      const filtered = rows.filter((row) => {
         try {
-          // Wrap row in proxy to handle casing issues like "Account manager" vs "Account Manager"
-          const proxyRow = createFuzzyRowProxy(row);
-          return expressionFn(proxyRow);
-        } catch (_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
+          // Wrap arrow function and immediately invoke it with the row
+          // Example: ((row) => row['City'] === 'NY')(row)
+          return eval(`(${cleanCode})(row)`);
+        } catch (e) {
+          console.error("Filter evaluation error:", e);
           return false;
         }
       });
+
+      return filtered;
     } catch (e) {
       console.error("Invalid Filter Code", e);
       // On error, return all rows (safe fallback) or maybe empty?
@@ -136,12 +109,16 @@ export const AskWoznyView = () => {
     }
 
     setIsThinking(true);
-    setIsThinking(true);
     try {
-      // Only feed visible columns to AI? Or give it all but tell it which are ignored?
-      // For now, let's just give it visible columns to avoid confusion
-      const code = await generateFilterCode(visibleColumns, aiQuery, rows);
-      console.log("AI Code:", code);
+      // Get ALL columns from the actual row data (includes dynamically added cluster columns)
+      const allColumnsInData = rows.length > 0 ? Object.keys(rows[0]) : columns;
+      
+      // Filter to visible columns if needed
+      const columnsToUse = showHiddenColumns 
+        ? allColumnsInData 
+        : allColumnsInData.filter((c) => !ignoredColumns.includes(c));
+      
+      const code = await generateFilterCode(columnsToUse, aiQuery, rows);
       setAiFilterCode(code);
     } catch (e) {
       console.error("AI Error:", e);

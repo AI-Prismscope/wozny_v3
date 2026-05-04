@@ -43,7 +43,17 @@ export const useWoznyLLM = create<LLMState>((set, get) => ({
     isReady: false,
 
     initialize: async () => {
-        if (get().engine || get().isLoading) return;
+        const state = get();
+        
+        // If already ready, don't reinitialize
+        if (state.isReady) {
+            return;
+        }
+
+        // If already initialized or loading, don't start again
+        if (state.engine || state.isLoading) {
+            return;
+        }
 
         set({ isLoading: true, error: null });
 
@@ -60,6 +70,7 @@ export const useWoznyLLM = create<LLMState>((set, get) => ({
             set({ engine, isReady: true, isLoading: false, progress: "Ready" });
         } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err));
+            console.error('LLM initialization failed:', error.message);
             set({ error: error.message, isLoading: false });
         }
     },

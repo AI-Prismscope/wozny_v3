@@ -2,6 +2,7 @@
 import React from 'react';
 import { useWoznyStore } from '@/lib/store/useWoznyStore';
 import { ShieldCheck, Cpu, MessageSquare, Wrench, FileInput, FileOutput, Search, Activity, Wand2, LucideIcon } from 'lucide-react';
+import { QuickstartSidebar } from '../components/QuickstartSidebar';
 
 interface FeatureCardProps {
     icon: LucideIcon;
@@ -20,7 +21,22 @@ interface StepProps {
 export const AboutView = () => {
     return (
         <div className="h-full overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
-            <div className="max-w-5xl mx-auto py-12 px-6">
+            <div className="max-w-7xl mx-auto py-12 px-6">
+                <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
+                    {/* Left Sidebar - Quickstart Guide */}
+                    <aside className="hidden lg:block">
+                        <div className="sticky top-6">
+                            <QuickstartSidebar />
+                        </div>
+                    </aside>
+
+                    {/* Mobile Quickstart - Collapsible at top */}
+                    <div className="lg:hidden mb-8">
+                        <QuickstartSidebar />
+                    </div>
+
+                    {/* Main Content */}
+                    <main>
 
                 {/* Hero / Mission */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
@@ -123,6 +139,8 @@ export const AboutView = () => {
                 {/* Footer */}
                 <div className="mt-16 text-center text-sm text-neutral-400">
                     <p>Wozny V3 • Built with Next.js, WebGPU & Transformers.js</p>
+                </div>
+                    </main>
                 </div>
             </div>
         </div>

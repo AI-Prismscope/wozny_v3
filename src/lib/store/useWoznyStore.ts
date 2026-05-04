@@ -124,7 +124,6 @@ export const useWoznyStore = create<WoznyState>()(
         state.splittableColumns = splitMap;
 
         state.sortConfig = [];
-        state.activeTab = "report";
 
         // Perform schema classification
         let classification: ClassificationResult | null = null;
@@ -143,29 +142,19 @@ export const useWoznyStore = create<WoznyState>()(
           state.schemaClassification = classification;
           state.showClassificationNotification = true;
           state.showClassificationDialog = false;
+          // Navigate to report for stored classifications
+          state.activeTab = "report";
         } else {
-          // Perform new classification
+          // Perform new classification - ALWAYS show dialog for first-time uploads
           classification = classifySchema(data, columns);
           state.schemaClassification = classification;
           
-          if (classification && classification.confidence > 80) {
-            // High confidence: auto-apply and show notification
-            storeClassification(fileName, classification, false);
-            state.showClassificationNotification = true;
-            state.showClassificationDialog = false;
-            
-            // Track analytics event
-            trackClassificationEvent(
-              AnalyticsEventType.CLASSIFICATION_AUTO,
-              classification.dataType,
-              classification.confidence,
-              classification.detectionMode,
-              fileName
-            );
-          } else if (classification) {
-            // Low confidence: show confirmation dialog
+          if (classification) {
+            // First time upload: always show confirmation dialog
             state.showClassificationNotification = false;
             state.showClassificationDialog = true;
+            // Stay on upload tab to show dialog
+            // Will navigate to report after user confirms
           }
         }
 
@@ -381,7 +370,8 @@ export const useWoznyStore = create<WoznyState>()(
         if (!state.schemaClassification) return;
 
         // Determine if this is a change or confirmation
-        const isChange = state.schemaClassification.dataType !== dataType;
+        const previousType = state.schemaClassification.dataType;
+        const isChange = previousType !== dataType;
         const eventType = isChange 
           ? AnalyticsEventType.CLASSIFICATION_CHANGED 
           : AnalyticsEventType.CLASSIFICATION_CONFIRMED;
@@ -407,13 +397,16 @@ export const useWoznyStore = create<WoznyState>()(
             state.schemaClassification.confidence,
             detectionMode,
             state.fileName,
-            isChange ? { previousType: state.schemaClassification.dataType } : undefined
+            isChange ? { previousType } : undefined
           );
         }
 
         // Close dialog, show notification
         state.showClassificationDialog = false;
         state.showClassificationNotification = true;
+
+        // Navigate to report tab after confirmation
+        state.activeTab = "report";
 
         // Re-run duplicate detection with new mode
         const duplicateGroups = findDuplicateGroups(state.rows, state.columns, detectionMode);
@@ -424,6 +417,7 @@ export const useWoznyStore = create<WoznyState>()(
     dismissClassificationNotification: () =>
       set((state) => {
         state.showClassificationNotification = false;
+        state.showClassificationDialog = false;
       }),
 
     openClassificationSettings: () =>

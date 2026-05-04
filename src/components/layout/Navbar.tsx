@@ -38,7 +38,7 @@ export const Navbar = () => {
     };
 
     return (
-        <nav className="flex items-center space-x-1">
+        <nav className="flex items-center space-x-1 overflow-x-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent">
             {tabs.filter(t => !t.hidden).map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
@@ -46,7 +46,7 @@ export const Navbar = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as WoznyState["activeTab"])}
                         className={clsx(
-                            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all relative",
+                            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all relative whitespace-nowrap flex-shrink-0",
                             isActive
                                 ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
                                 : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"

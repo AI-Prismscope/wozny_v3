@@ -127,7 +127,13 @@ export const UploadView = () => {
                         accept=".csv"
                         className="hidden"
                         id="file-upload"
-                        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                                handleFile(e.target.files[0]);
+                                // Reset input value to allow re-uploading the same file
+                                e.target.value = '';
+                            }
+                        }}
                     />
                     <label
                         htmlFor="file-upload"

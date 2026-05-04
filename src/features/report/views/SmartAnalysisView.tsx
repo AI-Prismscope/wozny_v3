@@ -29,16 +29,49 @@ export const SmartAnalysisView = () => {
         const texts = rows.map(r => r[col] || '');
 
         try {
-            // Run K-Means (k=5 default for now)
-            const clusterIds = await groupTexts(texts, 5);
+            // Check if this is categorical data (few unique values relative to total rows)
+            const uniqueValues = new Set(texts.filter(t => t.trim() !== ''));
+            const uniqueCount = uniqueValues.size;
+            const totalCount = texts.length;
+            const uniqueRatio = uniqueCount / totalCount;
 
-            // Map IDs to Group Names (e.g., "Group 1", "Group 2")
-            // In a real app, we'd find the centermost text and name it "Like 'Google'"
-            // clusterIds is Int32Array, convert to standard array
-            const groupValues = Array.from(clusterIds).map(id => `Cluster ${id + 1}`);
+            // If less than 20% unique values, treat as categorical (exact grouping)
+            // Examples: City names, Status values, Categories
+            if (uniqueRatio < 0.2 || uniqueCount <= 10) {
+                console.log(`📊 Detected categorical column: ${col} (${uniqueCount} unique values)`);
+                
+                // Small delay to show UI feedback
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Create a mapping of unique values to cluster IDs
+                const valueToCluster = new Map<string, number>();
+                const sortedUniqueValues = Array.from(uniqueValues).sort();
+                sortedUniqueValues.forEach((value, index) => {
+                    valueToCluster.set(value, index);
+                });
 
-            // Add to store
-            addColumn(`${col} Group`, groupValues);
+                // Assign cluster IDs based on exact match
+                const groupValues = texts.map(text => {
+                    const trimmedText = text.trim();
+                    if (trimmedText === '') return 'Cluster 0 (Empty)';
+                    const clusterId = valueToCluster.get(trimmedText);
+                    return `Cluster ${(clusterId ?? 0) + 1}`;
+                });
+
+                addColumn(`${col} Group`, groupValues);
+            } else {
+                // Use semantic clustering for text with high variability
+                // Examples: Addresses, Descriptions, Comments
+                console.log(`🔍 Using semantic clustering for: ${col} (${uniqueCount} unique values)`);
+                
+                // Run K-Means (k=5 default for now)
+                const clusterIds = await groupTexts(texts, 5);
+
+                // Map IDs to Group Names
+                const groupValues = Array.from(clusterIds).map(id => `Cluster ${id + 1}`);
+
+                addColumn(`${col} Group`, groupValues);
+            }
 
         } catch (e) {
             console.error(e);
@@ -46,6 +79,17 @@ export const SmartAnalysisView = () => {
         } finally {
             setAnalyzingColumn(null);
         }
+    };
+
+    // Helper to determine clustering type for display
+    const getClusteringType = (col: string): 'categorical' | 'semantic' => {
+        const texts = rows.map(r => r[col] || '');
+        const uniqueValues = new Set(texts.filter(t => t.trim() !== ''));
+        const uniqueCount = uniqueValues.size;
+        const totalCount = texts.length;
+        const uniqueRatio = uniqueCount / totalCount;
+        
+        return (uniqueRatio < 0.2 || uniqueCount <= 10) ? 'categorical' : 'semantic';
     };
 
     return (
@@ -61,34 +105,53 @@ export const SmartAnalysisView = () => {
             </div>
 
             <div className="space-y-4">
-                {textColumns.map(col => (
-                    <div key={col} className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg bg-white dark:bg-neutral-900 flex items-center justify-between">
-                        <div>
-                            <h3 className="font-semibold">{col}</h3>
-                            <p className="text-xs text-neutral-400">
-                                {rows.length} entries
-                            </p>
-                        </div>
-
-                        {analyzingColumn === col ? (
-                            <div className="flex items-center gap-3">
-                                <div className="text-xs text-purple-500 font-medium">
-                                    {status === 'working' ? `Analyzing ${progress}%` : 'Finalizing...'}
-                                </div>
-                                <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                {textColumns.map(col => {
+                    const clusteringType = getClusteringType(col);
+                    const uniqueCount = new Set(rows.map(r => r[col] || '').filter(t => t.trim() !== '')).size;
+                    
+                    return (
+                        <div key={col} className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg bg-white dark:bg-neutral-900 flex items-center justify-between">
+                            <div>
+                                <h3 className="font-semibold">{col}</h3>
+                                <p className="text-xs text-neutral-400">
+                                    {rows.length} entries • {uniqueCount} unique values
+                                </p>
+                                <p className="text-xs text-neutral-500 mt-1">
+                                    {clusteringType === 'categorical' ? (
+                                        <span className="text-blue-600 dark:text-blue-400">
+                                            📊 Categorical grouping (exact match)
+                                        </span>
+                                    ) : (
+                                        <span className="text-purple-600 dark:text-purple-400">
+                                            🔍 Semantic clustering (similarity)
+                                        </span>
+                                    )}
+                                </p>
                             </div>
-                        ) : (
-                            <button
-                                onClick={() => handleAnalyze(col)}
-                                disabled={status === 'working'}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors text-sm font-medium disabled:opacity-50"
-                            >
-                                <Play className="w-4 h-4" />
-                                Group by Similarity
-                            </button>
-                        )}
-                    </div>
-                ))}
+
+                            {analyzingColumn === col ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="text-xs text-purple-500 font-medium">
+                                        {clusteringType === 'categorical' 
+                                            ? 'Grouping...' 
+                                            : (status === 'working' ? `Analyzing ${progress}%` : 'Finalizing...')
+                                        }
+                                    </div>
+                                    <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => handleAnalyze(col)}
+                                    disabled={status === 'working'}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300 rounded hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors text-sm font-medium disabled:opacity-50"
+                                >
+                                    <Play className="w-4 h-4" />
+                                    Group by Similarity
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
